@@ -10,7 +10,7 @@ Prerequisites to Run:
 - Posix: zip (Info-ZIP) and 7z (p7zip) (On Windows, these will automatically
   be downloaded if necessary.)
 - Posix: Working gcc toolchain, including GNU make which is not installed on
-  FreeBSD by default.
+  FreeBSD by default. On OSX, Xcode is needed to install the gcc toolchain.
 - Windows: Working DMC and MSVC toolchains. The default make must be DM make.
   Also, these environment variables must be set:
     VCDIR:  Visual C directory
@@ -172,7 +172,6 @@ else version(Posix)
     immutable exe           = "";
     immutable lib           = ".a";
     immutable obj           = ".o";
-    immutable dll           = ".so";
     immutable generatedDocs = "dlang.org/web";
     immutable libPhobos32   = "libphobos2";
     immutable libPhobos64   = "libphobos2";
@@ -193,9 +192,15 @@ else version(Posix)
         immutable make = "make";
 
     version(OSX)
+    {
         immutable useBitsSuffix = false;
+        immutable dll           = ".dylib";
+    }
     else
+    {
         immutable useBitsSuffix = true;
+        immutable dll           = ".so";
+    }
 }
 else
     static assert(false, "Unsupported system");
