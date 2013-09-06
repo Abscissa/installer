@@ -75,9 +75,6 @@ on each of the target OSes to create the OS-specific archives. Then copy all
 the archives to a single directory on any Posix system (not Windows because
 that would destroy the symlinks in the posix archives). Then, from that
 directory, run this tool with any/all of the --combine-* flags.
-
-Internal Note: Anything that's independent of 32/64-bits, or is combined
-32/64-bits (such as documentation) is treated as if it were 32-bit-only.
 +/
 
 import std.algorithm;
@@ -283,6 +280,9 @@ void showHelp()
         --clean            Delete temporary dir (see above) and exit.
         
         -j [N],--jobs=[N]  (Posix-only) Pass -j,--jobs through to GNU make.
+		
+		--only-32          Only build and package 32-bit.
+		--only-64          Only build and package 64-bit.
         `).outdent().strip()
     );
 }
@@ -301,6 +301,8 @@ bool combineArchive;
 bool needZip; // Was a flag given that requires using zip?
 bool need7z;  // Was a flag given that requires using 7z?
 int  numJobs = -1;
+bool do32Bit;
+bool do64Bit;
 
 version(Windows)
 {
@@ -355,6 +357,8 @@ int main(string[] args)
             "combine-zip",  &combineZip,
             "combine-7z",   &combine7z,
             "j|jobs",       &numJobs,
+            "only-32",      &do32Bit,
+            "only-64",      &do64Bit,
         );
     }
     catch(Exception e)
@@ -408,6 +412,15 @@ int main(string[] args)
         }
     }
     
+	if(do32Bit && do64Bit)
+	{
+		errorMsg("--only-32 and --only-64 cannot be used together.");
+		return 1;
+	}
+	
+	if(!do32Bit && !do64Bit)
+		do32Bit = do64Bit = true;
+	
     if(combineArchive)
         skipPackage = true;
     
@@ -496,7 +509,8 @@ void init(string branch)
 {
     // Setup directory paths
     origDir = getcwd();
-    releaseDir = origDir ~ `/dmd.` ~ branch ~ "." ~ osDirName;
+	auto dirBitSuffix = releaseBitSuffix(do32Bit, do64Bit);
+    releaseDir = origDir ~ `/dmd.` ~ branch ~ "." ~ osDirName ~ dirBitSuffix;
     if(cloneDir == "")
         cloneDir = defaultWorkDir;
 
@@ -578,35 +592,38 @@ void init(string branch)
         }
         
         // Check MSVC tools needed for 64-bit
-        if(environment.get("VCDIR", "") == "" || environment.get("SDKDIR", "") == "")
-        {
-            fail(`
-                Environment variables VCDIR and SDKDIR must both be set. For example:
-                set VCDIR=C:\Program Files (x86)\Microsoft Visual Studio 8\VC\
-                set SDKDIR=C:\Program Files\Microsoft SDKs\Windows\v7.1\
-            `.outdent().strip());
-        }
-        
-        win64vcDir  = environment[ "VCDIR"].chomp("\\").chomp("/");
-        win64sdkDir = environment["SDKDIR"].chomp("\\").chomp("/");
+		if(do64Bit)
+		{
+			if(environment.get("VCDIR", "") == "" || environment.get("SDKDIR", "") == "")
+			{
+				fail(`
+					Environment variables VCDIR and SDKDIR must both be set. For example:
+					set VCDIR=C:\Program Files (x86)\Microsoft Visual Studio 8\VC\
+					set SDKDIR=C:\Program Files\Microsoft SDKs\Windows\v7.1\
+				`.outdent().strip());
+			}
+			
+			win64vcDir  = environment[ "VCDIR"].chomp("\\").chomp("/");
+			win64sdkDir = environment["SDKDIR"].chomp("\\").chomp("/");
 
-        verboseMsg("VCDIR:  " ~ displayPath(win64vcDir));
-        verboseMsg("SDKDIR: " ~ displayPath(win64sdkDir));
-        
-        ensureTool(quote(win64vcDir~"/bin/amd64/cl.exe"), "/?");
-        try
-        {
-            ensureDir(win64sdkDir);
-            ensureDir(win64sdkDir~"/Bin");
-            ensureDir(win64sdkDir~"/Include");
-            ensureDir(win64sdkDir~"/Lib");
-            ensureDir(win64sdkDir~"/License");
-            ensureDir(win64sdkDir~"/Redist");
-            ensureDir(win64sdkDir~"/Samples");
-            ensureDir(win64sdkDir~"/Setup");
-        }
-        catch(Fail e)
-            fail("SDKDIR doesn't appear to be a proper Windows SDK: " ~ environment["SDKDIR"]);
+			verboseMsg("VCDIR:  " ~ displayPath(win64vcDir));
+			verboseMsg("SDKDIR: " ~ displayPath(win64sdkDir));
+			
+			ensureTool(quote(win64vcDir~"/bin/amd64/cl.exe"), "/?");
+			try
+			{
+				ensureDir(win64sdkDir);
+				ensureDir(win64sdkDir~"/Bin");
+				ensureDir(win64sdkDir~"/Include");
+				ensureDir(win64sdkDir~"/Lib");
+				ensureDir(win64sdkDir~"/License");
+				ensureDir(win64sdkDir~"/Redist");
+				ensureDir(win64sdkDir~"/Samples");
+				ensureDir(win64sdkDir~"/Setup");
+			}
+			catch(Fail e)
+				fail("SDKDIR doesn't appear to be a proper Windows SDK: " ~ environment["SDKDIR"]);
+		}
     }
     else
         // Check for GNU make
@@ -641,9 +658,11 @@ void ensureSources()
 
 void cleanAll()
 {
-    cleanAll(Bits.bits32);
-    if(makefile != makefile64)
-        cleanAll(Bits.bits64);
+	if(do32Bit)
+		cleanAll(Bits.bits32);
+	
+    if(do64Bit)
+		cleanAll(Bits.bits64);
 }
 
 void cleanAll(Bits bits)
@@ -691,12 +710,17 @@ void cleanAll(Bits bits)
 
 void buildAll()
 {
-    buildAll(Bits.bits32);
-    buildAll(Bits.bits64);
+	if(do32Bit)
+		buildAll(Bits.bits32);
+
+	if(do64Bit)
+		buildAll(Bits.bits64);
 }
 
 void buildAll(Bits bits)
 {
+	static alreadyBuiltDocs = false;
+
     auto saveDir = getcwd();
     scope(exit) changeDir(saveDir);
 
@@ -777,8 +801,8 @@ void buildAll(Bits bits)
     }
     removeFiles(cloneDir~"/phobos", "*{"~obj~"}", SpanMode.depth);
     
-    // Docs are bits-independent, so treat them as 32-bit only
-    if(bits == Bits.bits32)
+    // Build docs
+    if(!alreadyBuiltDocs)
     {
         version(Windows)
         {
@@ -824,9 +848,11 @@ void buildAll(Bits bits)
         // Copy phobos docs into dlang.org docs directory, because
         // dman's posix makefile requires it.
         copyDir(cloneDir~"/web/phobos-prerelease", cloneDir~"/"~generatedDocs~"/phobos");
+
+		alreadyBuiltDocs = true;
     }
     
-    // Skip 64-bit tools when not using separate bin32/bin64 dirs
+    // Skip 64-bit tools on Windows
     if(!isWin || bits == Bits.bits32)
     {
         infoMsg("Building Tools "~bitsDisplay);
@@ -888,24 +914,35 @@ void createRelease(string branch)
         copyDir(cloneDir~"/phobos/generated/"~osDirName~"/release/32", releaseLib32Dir, excludeEtc);
         version(Windows)
         {
-            copyDir(cloneDir~"/phobos/generated/"~osDirName~"/release/64", releaseLib64Dir, excludeEtc);
-            copyFile(cloneDir~"/druntime/lib/gcstub.obj",   releaseLib32Dir~"/gcstub.obj");
-            copyFile(cloneDir~"/druntime/lib/gcstub64.obj", releaseLib32Dir~"/gcstub64.obj");
+			if(do64Bit)
+			{
+				copyDir(cloneDir~"/phobos/generated/"~osDirName~"/release/64", releaseLib64Dir, excludeEtc);
+				copyFile(cloneDir~"/druntime/lib/gcstub64.obj", releaseLib32Dir~"/gcstub64.obj");
+			}
+			
+			if(do32Bit)
+				copyFile(cloneDir~"/druntime/lib/gcstub.obj",   releaseLib32Dir~"/gcstub.obj");
         }
     }
     
     // Copy bin32
     version(OSX) {} else // OSX doesn't include 32-bit tools
     {
-        copyFile(cloneDir~"/dmd/src/dmd32"~exe, releaseBin32Dir~"/dmd"~exe);
-        copyDir(cloneDir~"/tools/generated/"~osDirName~"/32", releaseBin32Dir, file => !file.endsWith(obj));
+		if(do32Bit)
+		{
+			copyFile(cloneDir~"/dmd/src/dmd32"~exe, releaseBin32Dir~"/dmd"~exe);
+			copyDir(cloneDir~"/tools/generated/"~osDirName~"/32", releaseBin32Dir, file => !file.endsWith(obj));
+		}
     }
     
     // Copy bin64
     version(Windows) {} else // Win doesn't include 64-bit tools
     {
-        copyFile(cloneDir~"/dmd/src/dmd64"~exe, releaseBin64Dir~"/dmd"~exe);
-        copyDir(cloneDir~"/tools/generated/"~osDirName~"/64", releaseBin64Dir, file => !file.endsWith(obj));
+		if(do64Bit)
+		{
+			copyFile(cloneDir~"/dmd/src/dmd64"~exe, releaseBin64Dir~"/dmd"~exe);
+			copyDir(cloneDir~"/tools/generated/"~osDirName~"/64", releaseBin64Dir, file => !file.endsWith(obj));
+		}
     }
     
     verifyExtras();
@@ -1010,13 +1047,15 @@ void verifyExtras()
 
 void createZip(string branch)
 {
-    auto archiveName = baseName(releaseDir)~".zip";
+	auto bits = releaseBitSuffix(do32Bit, do64Bit);
+    auto archiveName = baseName(releaseDir)~bits~".zip";
     archiveZip(releaseDir~"/dmd2", archiveName);
 }
 
 void create7z(string branch)
 {
-    auto archiveName = baseName(releaseDir)~".7z";
+	auto bits = releaseBitSuffix(do32Bit, do64Bit);
+    auto archiveName = baseName(releaseDir)~bits~".7z";
     archive7z(releaseDir~"/dmd2", archiveName);
 }
 
@@ -1107,6 +1146,17 @@ string quote(string str)
         return `"`~str~`"`;
     else
         return `'`~str~`'`;
+}
+
+string releaseBitSuffix(bool has32, bool has64)
+{
+	if(do32Bit && !do64Bit)
+		return "-32"; // Ex: "dmd.v2.064.linux-32.zip"
+	
+	if(do64Bit && !do32Bit)
+		return "-64";
+	
+	return "";
 }
 
 // Filesystem Utils -----------------------
