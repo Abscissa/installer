@@ -641,12 +641,23 @@ void cloneSources(string branch)
     makeDir(cloneDir);
     changeDir(cloneDir);
     
-    gitClone("https://github.com/D-Programming-Language/dmd.git",       "dmd",       branch);
-    gitClone("https://github.com/D-Programming-Language/druntime.git",  "druntime",  branch);
-    gitClone("https://github.com/D-Programming-Language/phobos.git",    "phobos",    branch);
-    gitClone("https://github.com/D-Programming-Language/tools.git",     "tools",     branch);
-    gitClone("https://github.com/D-Programming-Language/dlang.org.git", "dlang.org", branch);
-    gitClone("https://github.com/D-Programming-Language/installer.git", "installer", branch);
+    // Try git protocol (It's faster)
+    auto prefix = "git@github.com:";
+    try
+        gitClone(prefix~"D-Programming-Language/dmd.git", "dmd", branch);
+    catch(Exception e)
+    {
+        // Fallback to https:// (It's more compatible)
+        infoMsg("Couldn't do git protocol, falling back to 'https://'...");
+        prefix = "https://github.com/";
+        gitClone(prefix~"D-Programming-Language/dmd.git", "dmd", branch);
+    }
+
+    gitClone(prefix~"D-Programming-Language/druntime.git",  "druntime",  branch);
+    gitClone(prefix~"D-Programming-Language/phobos.git",    "phobos",    branch);
+    gitClone(prefix~"D-Programming-Language/tools.git",     "tools",     branch);
+    gitClone(prefix~"D-Programming-Language/dlang.org.git", "dlang.org", branch);
+    gitClone(prefix~"D-Programming-Language/installer.git", "installer", branch);
 }
 
 void ensureSources()
