@@ -787,10 +787,10 @@ void buildAll(Bits bits)
     else
         static assert(false, "Unsupported platform");
     
-	// Copy OPTLINK to same directory as the sc.ini we want it to read
+    // Copy OPTLINK to same directory as the sc.ini we want it to read
     version(Windows)
-		copyFile(customExtrasDir~"/dmd2/windows/bin/link.exe", cloneDir~"/dmd/src/link.exe");
-	
+        copyFile(customExtrasDir~"/dmd2/windows/bin/link.exe", cloneDir~"/dmd/src/link.exe");
+    
     infoMsg("Building Druntime "~bitsDisplay);
     changeDir(cloneDir~"/druntime");
     run(make~jobs~makeModel~" DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
@@ -1583,7 +1583,7 @@ version(Windows)
     void initDownloader()
     {
         dloadToolPath = cloneDir~"/"~dloadToolFilename;
-		makeDir(cloneDir);
+        makeDir(cloneDir);
         std.file.write(dloadToolPath, dloadToolContent);
     }
     
