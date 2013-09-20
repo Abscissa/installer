@@ -601,6 +601,14 @@ void init(string branch)
                 "/LARGEADDRESSAWARE. You must use a newer OPTLINK. "~
                 "See <http://wiki.dlang.org/Building_OPTLINK>");
         }
+
+		ensureFile(customExtrasDir~"/dmd2/windows/lib/user32.lib");
+		ensureFile(customExtrasDir~"/dmd2/windows/lib/kernel32.lib");
+		ensureFile(customExtrasDir~"/dmd2/windows/lib/snn.lib");
+		ensureFile(customExtrasDir~"/dmd2/windows/lib/ws2_32.lib");
+		ensureFile(customExtrasDir~"/dmd2/windows/lib/wsock32.lib");
+		ensureFile(customExtrasDir~"/dmd2/windows/lib/shell32.lib");
+		ensureFile(customExtrasDir~"/dmd2/windows/lib/advapi32.lib");
         
         // Check MSVC tools needed for 64-bit
         if(do64Bit)
@@ -1204,10 +1212,16 @@ void ensureNotFile(string path)
         fail("'"~path~"' is a file, not a directory");
 }
 
+void ensureFile(string path)
+{
+    if(!exists(path) || !isFile(path))
+        fail("Missing file: "~path);
+}
+
 void ensureDir(string path)
 {
     if(!exists(path) || !isDir(path))
-        fail("Directory not found: '"~path~"'");
+        fail("Directory not found: "~path);
 }
 
 /// Removes a file if it exists, otherwise do nothing
