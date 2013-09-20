@@ -590,10 +590,16 @@ void init(string branch)
         if(!checkTool("type", dummyOptlinkHelp, `OPTLINK \(R\) for Win32`))
             fail("DMC appears to be missing OPTLINK");
 
-        if(!checkTool("type", dummyOptlinkHelp, `OPTLINK \(R\) for Win32.*LA\[RGEADDRESSAWARE\]`))
+        // Check support files needed during build
+        auto extrasOptlink = customExtrasDir~"/dmd2/windows/bin/link.exe";
+        if(!checkTool(extrasOptlink, "/?", `OPTLINK \(R\) for Win32`))
+            fail("You must have a valid OPTLINK in: "~displayPath(extrasOptlink));
+
+        if(!checkTool(extrasOptlink, "/?", `OPTLINK \(R\) for Win32.*LA\[RGEADDRESSAWARE\]`))
         {
-            fail("Your DMC's OPTLINK does not support /LARGEADDRESSAWARE. You must "~
-                "use a newer OPTLINK. See <http://wiki.dlang.org/Building_OPTLINK>");
+            fail("The OPTLINK in your --extras=... directory does not support "~
+                "/LARGEADDRESSAWARE. You must use a newer OPTLINK. "~
+                "See <http://wiki.dlang.org/Building_OPTLINK>");
         }
         
         // Check MSVC tools needed for 64-bit
