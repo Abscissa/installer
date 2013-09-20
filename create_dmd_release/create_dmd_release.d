@@ -621,10 +621,6 @@ void init(string branch)
                 ensureDir(win64sdkDir~"/Bin");
                 ensureDir(win64sdkDir~"/Include");
                 ensureDir(win64sdkDir~"/Lib");
-                ensureDir(win64sdkDir~"/License");
-                ensureDir(win64sdkDir~"/Redist");
-                ensureDir(win64sdkDir~"/Samples");
-                ensureDir(win64sdkDir~"/Setup");
             }
             catch(Fail e)
                 fail("SDKDIR doesn't appear to be a proper Windows SDK: " ~ environment["SDKDIR"]);
