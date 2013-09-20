@@ -5,7 +5,6 @@ Prerequisites to Compile:
 
 Prerequisites to Run:
 ---------------------
-- A 64-bit multi-lib OS
 - Git
 - Posix: zip (Info-ZIP) and 7z (p7zip) (On Windows, these will automatically
   be downloaded if necessary.)
@@ -42,6 +41,9 @@ $ [path-to]/create_dmd_release v2.064 --extras=[path-to]/localextras-[os] --arch
 Optionally substitute "v2.064" with either "master" or the git tag name of the
 desired release (must be at least "v2.064"). For beta releases, you can use a
 branch name like "2.064". View all options with "create_dmd_release --help".
+
+If a working multilib system is any trouble, you can also build 32-bit and
+64-bit versions separately using the --only-32 and --only-64 flags.
 
 3. Copy the resulting .zip and .7z files to a single directory on any
 non-Windows machine (Windows would mess up the symlinks), and generate the
@@ -234,7 +236,6 @@ void showHelp()
 
         Generates a platform-specific DMD release as a directory tree.
         Optionally, it can also generate archived releases.
-        This must be run on a 64-bit multilib OS.
         
         TAG_OR_BRANCH:     GitHub tag/branch of DMD to generate a release for.
         
