@@ -512,12 +512,17 @@ int main(string[] args)
 
 void init(string branch)
 {
+    auto saveDir = getcwd();
+    scope(exit) changeDir(saveDir);
+
     // Setup directory paths
     origDir = getcwd();
     auto dirBitSuffix = releaseBitSuffix(do32Bit, do64Bit);
     releaseDir = origDir ~ `/dmd.` ~ branch ~ "." ~ osDirName ~ dirBitSuffix;
+
     if(cloneDir == "")
         cloneDir = defaultWorkDir;
+	cloneDir = absolutePath(cloneDir);
 
     auto suffix32 = useBitsSuffix? "32" : "";
     auto suffix64 = useBitsSuffix? "64" : "";
@@ -531,9 +536,9 @@ void init(string branch)
 
     version(Windows)
     {
-        unzipArchiveDir  = cloneDir~"/unzip";
-        zipArchiveDir    = cloneDir~"/zip";
-        tool7zArchiveDir = cloneDir~"/7z";
+        unzipArchiveDir  = absolutePath(cloneDir~"/unzip");
+        zipArchiveDir    = absolutePath(cloneDir~"/zip");
+        tool7zArchiveDir = absolutePath(cloneDir~"/7z");
     }
 
     // Check for required external tools
@@ -650,6 +655,9 @@ void cloneSources(string branch)
     ensureNotFile(cloneDir);
     removeDir(cloneDir);
     makeDir(cloneDir);
+
+    auto saveDir = getcwd();
+    scope(exit) changeDir(saveDir);
     changeDir(cloneDir);
     
     // Try git protocol (It's faster)
@@ -693,6 +701,9 @@ void cleanAll()
 
 void cleanAll(Bits bits)
 {
+    auto saveDir = getcwd();
+    scope(exit) changeDir(saveDir);
+
     auto targetMakefile = bits == Bits.bits32? makefile : makefile64;
     auto bitsStr        = bits == Bits.bits32? "32" : "64";
     auto bitsDisplay = toString(bits);
