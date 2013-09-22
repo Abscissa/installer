@@ -1467,17 +1467,20 @@ string runCapture(string cmd)
 /// Requires a command-line git client.
 void gitClone(string repo, string path, string branch=null)
 {
-    auto saveDir = getcwd();
-    scope(exit) changeDir(saveDir);
     removeDir(path);
     makeDir(path);
-    changeDir(path);
     
     infoMsg("Cloning: "~repo);
     auto quietSwitch = verbose? "" : "-q ";
-    run("git clone "~quietSwitch~quote(repo)~" .");
+    run("git clone "~quietSwitch~quote(repo)~" "~path);
     if(branch != "")
+	{
+		auto saveDir = getcwd();
+		scope(exit) changeDir(saveDir);
+		changeDir(path);
+
         run("git checkout "~quietSwitch~quote(branch));
+	}
 }
 
 string[] gitVersionedFiles(string path)
