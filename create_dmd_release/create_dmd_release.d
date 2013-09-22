@@ -91,6 +91,8 @@ import std.regex;
 import std.stdio;
 import std.string;
 import std.typetuple;
+version(Posix)
+    import core.sys.posix.sys.stat;
 
 immutable defaultWorkDirName = ".create_dmd_release";
 immutable unzipBannerRegex = `^UnZip [^\n]+by Info-ZIP`;
@@ -522,7 +524,7 @@ void init(string branch)
 
     if(cloneDir == "")
         cloneDir = defaultWorkDir;
-	cloneDir = absolutePath(cloneDir);
+    cloneDir = absolutePath(cloneDir);
 
     auto suffix32 = useBitsSuffix? "32" : "";
     auto suffix64 = useBitsSuffix? "64" : "";
@@ -607,13 +609,13 @@ void init(string branch)
                 "See <http://wiki.dlang.org/Building_OPTLINK>");
         }
 
-		ensureFile(customExtrasDir~"/dmd2/windows/lib/user32.lib");
-		ensureFile(customExtrasDir~"/dmd2/windows/lib/kernel32.lib");
-		ensureFile(customExtrasDir~"/dmd2/windows/lib/snn.lib");
-		ensureFile(customExtrasDir~"/dmd2/windows/lib/ws2_32.lib");
-		ensureFile(customExtrasDir~"/dmd2/windows/lib/wsock32.lib");
-		ensureFile(customExtrasDir~"/dmd2/windows/lib/shell32.lib");
-		ensureFile(customExtrasDir~"/dmd2/windows/lib/advapi32.lib");
+        ensureFile(customExtrasDir~"/dmd2/windows/lib/user32.lib");
+        ensureFile(customExtrasDir~"/dmd2/windows/lib/kernel32.lib");
+        ensureFile(customExtrasDir~"/dmd2/windows/lib/snn.lib");
+        ensureFile(customExtrasDir~"/dmd2/windows/lib/ws2_32.lib");
+        ensureFile(customExtrasDir~"/dmd2/windows/lib/wsock32.lib");
+        ensureFile(customExtrasDir~"/dmd2/windows/lib/shell32.lib");
+        ensureFile(customExtrasDir~"/dmd2/windows/lib/advapi32.lib");
         
         // Check MSVC tools needed for 64-bit
         if(do64Bit)
@@ -877,13 +879,14 @@ void buildAll(Bits bits)
             auto dlangOrgTarget = "";
         else
             static assert(false, "Unsupported platform");
-        run(make~jobs~makeModel~" DMD=../dmd/src/dmd -f "~targetMakefile~dlangOrgTarget~hideStdout);
+        // Use 32-bit version of the makefile because dlang.org lacks a win64.mak
+        run(make~jobs~" DMD=../dmd/src/dmd -f "~makefile~dlangOrgTarget~hideStdout);
         version(Windows)
         {
             copyDir(cloneDir~"/web/phobos-prerelease", cloneDir~"/dlang.org/phobos");
             copyFile(cloneDir~"/tools/dlibcurl32-"~libCurlVersion~"/libcurl.lib", "./curl.lib");
             copyDir(cloneDir~"/tools/dlibcurl32-"~libCurlVersion, ".", file => file.endsWith(".dll"));
-            run(make~jobs~makeModel~" chm DMD=../dmd/src/dmd DOCSRC=../dlang.org DOCDIR=../web/phobos-prerelease -f "~targetMakefile~hideStdout);
+            run(make~jobs~" chm DMD=../dmd/src/dmd DOCSRC=../dlang.org DOCDIR=../web/phobos-prerelease -f "~makefile~hideStdout);
         }
 
         // Copy phobos docs into dlang.org docs directory, because
@@ -1328,6 +1331,20 @@ void changeDir(string path)
         fail(e.msg);
 }
 
+/// Copy file attributes from src file to dest file
+/// Does nothing on non-Posix
+void copyAttributes(string src, string dest)
+{
+    // Only needed on Posix
+    version(Posix)
+    {
+        auto attr = cast(mode_t)getAttributes(src);
+        auto result = chmod(dest.toStringz(), attr);
+        if(result != 0)
+            fail("Unable to set attributes on: " ~ dest);
+    }
+}
+
 /// Copy files, creating destination directories as needed
 void copyFiles(string[] relativePaths, string srcPrefix, string destPrefix, bool delegate(string) filter = null)
 {
@@ -1344,6 +1361,7 @@ void copyFiles(string[] relativePaths, string srcPrefix, string destPrefix, bool
 
         verboseMsg("    "~path);
         copy(srcPath, destPath);
+        copyAttributes(srcPath, destPath);
     }
 }
 
@@ -1367,6 +1385,7 @@ void copyDir(string src, string dest, bool delegate(string) filter = null)
     if(!src.endsWith("/", "\\"))
         src ~= "/";
     
+    ensureDir(src);
     makeDir(dest);
     foreach(DirEntry entry; dirEntries(src[0..$-1], SpanMode.breadth, false))
     {
@@ -1394,6 +1413,7 @@ void copyDir(string src, string dest, bool delegate(string) filter = null)
             {
                 makeDir(dirName(destPath));
                 copy(srcPath, destPath);
+                copyAttributes(srcPath, destPath);
             }
         }
         else if(filter)
@@ -1407,6 +1427,7 @@ void copyFile(string src, string dest)
     verboseMsg("Copying from '"~displayPath(src)~"' to '"~displayPath(dest)~"'");
     makeDir(dirName(dest));
     copy(src, dest);
+    copyAttributes(src, dest);
 }
 
 void copyFileIfExists(string src, string dest)
@@ -1483,13 +1504,13 @@ void gitClone(string repo, string path, string branch=null)
     auto quietSwitch = verbose? "" : "-q ";
     run("git clone "~quietSwitch~quote(repo)~" "~path);
     if(branch != "")
-	{
-		auto saveDir = getcwd();
-		scope(exit) changeDir(saveDir);
-		changeDir(path);
+    {
+        auto saveDir = getcwd();
+        scope(exit) changeDir(saveDir);
+        changeDir(path);
 
         run("git checkout "~quietSwitch~quote(branch));
-	}
+    }
 }
 
 string[] gitVersionedFiles(string path)
