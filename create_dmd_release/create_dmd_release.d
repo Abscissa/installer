@@ -1088,15 +1088,13 @@ void verifyExtras()
 
 void createZip(string branch)
 {
-    auto bits = releaseBitSuffix(do32Bit, do64Bit);
-    auto archiveName = baseName(releaseDir)~bits~".zip";
+    auto archiveName = baseName(releaseDir)~".zip";
     archiveZip(releaseDir~"/dmd2", archiveName);
 }
 
 void create7z(string branch)
 {
-    auto bits = releaseBitSuffix(do32Bit, do64Bit);
-    auto archiveName = baseName(releaseDir)~bits~".7z";
+    auto archiveName = baseName(releaseDir)~".7z";
     archive7z(releaseDir~"/dmd2", archiveName);
 }
 
