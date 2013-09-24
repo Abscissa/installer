@@ -256,7 +256,7 @@ void showHelp()
                            the DM bins/libs that are not on GitHub.
 
         --skip-clone       Instead of cloning DMD repos from GitHub, use
-                           alreay-existing clones. Useful if you've already run
+                           already-existing clones. Useful if you've already run
                            create_release and don't want to repeat the cloning process.
                            The repositories will NOT be switched to TAG_OR_BRANCH,
                            TAG_OR_BRANCH will ONLY be used for directory/archive names.
@@ -279,8 +279,9 @@ void showHelp()
         
         --combine-zip      (Posix-only) Combine all platform-specific archives in
                            current directory into cross-platform zip archive.
-                           Cannot be used on Windows because the symlinks would be
-                           destroyed. Implies --skip-package.
+                           Cannot be used on Windows because the symlinks and
+                           executable attributes would be destroyed.
+                           Implies --skip-package.
 
         --combine-7z       (Posix-only) Just like --combine-zip, but makes a 7z.
         
@@ -290,6 +291,9 @@ void showHelp()
         
         --only-32          Only build and package 32-bit.
         --only-64          Only build and package 64-bit.
+        
+        On OSX, --only-32 and --only-64 are not recommended because universal
+        binaries will NOT be created, even when using the --combine-* flags.
         `).outdent().strip()
     );
 }
@@ -408,7 +412,7 @@ int main(string[] args)
     {
         if(combineArchive)
         {
-            errorMsg("--combine-* flags cannot be used on Windows because the symlinks would be destroyed.");
+            errorMsg("--combine-* flags cannot be used on Windows because the symlinks and executable attributes would be destroyed.");
             return 1;
         }
         
@@ -423,6 +427,15 @@ int main(string[] args)
     {
         errorMsg("--only-32 and --only-64 cannot be used together.");
         return 1;
+    }
+    
+    version(OSX)
+    {
+        if(do32Bit || do64Bit)
+        {
+            infoMsg("WARNING: Using --only-32 and --only-64: Universal binaries will not be created, even when using --combine-* flags.");
+            return 1;
+        }
     }
     
     if(!do32Bit && !do64Bit)
@@ -950,12 +963,21 @@ void createRelease(string branch)
     
     // Copy lib
     version(OSX)
-        copyFile(cloneDir~"/phobos/generated/"~osDirName~"/release/libphobos2.a", releaseLib32Dir~"/libphobos2.a");
+    {
+        if(do32Bit && do64Bit)
+            copyFile(cloneDir~"/phobos/generated/"~osDirName~"/release/libphobos2.a", releaseLib32Dir~"/libphobos2.a");
+        else if(do32Bit)
+            copyFile(cloneDir~"/phobos/generated/"~osDirName~"/release/32/libphobos2.a", releaseLib32Dir~"/libphobos2_32.a");
+        else if(do64Bit)
+            copyFile(cloneDir~"/phobos/generated/"~osDirName~"/release/64/libphobos2.a", releaseLib32Dir~"/libphobos2_64.a");
+    }
     else
     {
         // Generated lib dir contains an empty "etc/c/zlib" that we shouldn't include.
         auto excludeEtc = delegate bool(string file) => !file.startsWith("etc/");
-        copyDir(cloneDir~"/phobos/generated/"~osDirName~"/release/32", releaseLib32Dir, excludeEtc);
+        if(do32Bit)
+            copyDir(cloneDir~"/phobos/generated/"~osDirName~"/release/32", releaseLib32Dir, excludeEtc);
+
         version(Windows)
         {
             if(do64Bit)
