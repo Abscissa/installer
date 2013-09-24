@@ -94,7 +94,6 @@ import std.typetuple;
 version(Posix)
     import core.sys.posix.sys.stat;
 
-immutable defaultWorkDirName = ".create_dmd_release";
 immutable unzipBannerRegex = `^UnZip [^\n]+by Info-ZIP`;
 immutable zipBannerRegex   = `^Copyright [^\n]+Info-ZIP`;
 
@@ -112,6 +111,9 @@ immutable allOsDirNames = [
 
 version(Windows)
 {
+    // Cannot start with a period or MS's HTML Help Workshop will fail
+    immutable defaultWorkDirName = "create_dmd_release";
+    
     immutable makefile      = "win32.mak";
     immutable makefile64    = "win64.mak";
     immutable devNull       = "NUL";
@@ -172,6 +174,7 @@ adoStream.Close
 }
 else version(Posix)
 {
+    immutable defaultWorkDirName = ".create_dmd_release";
     immutable makefile      = "posix.mak";
     immutable makefile64    = "posix.mak";
     immutable devNull       = "/dev/null";
@@ -956,8 +959,11 @@ void createRelease(string branch)
     // Copy documentation
     auto dlangFilter = (string a) =>
         !a.startsWith("images/original/") &&
+        !a.startsWith("chm/") &&
         ( a.endsWith(".html") || a.startsWith("css/", "images/", "js/") );
     copyDir(cloneDir~"/"~generatedDocs, releaseDir~"/dmd2/html/d", a => dlangFilter(a));
+    version(Windows)
+        copyFile(cloneDir~"/"~generatedDocs~"/d.chm", releaseBin32Dir~"/d.chm");
     copyDirVersioned(cloneDir~"/dmd/samples",  releaseDir~"/dmd2/samples/d");
     copyDirVersioned(cloneDir~"/dmd/docs/man", releaseDir~"/dmd2/man");
     makeDir(releaseDir~"/dmd2/html/d/zlib");
