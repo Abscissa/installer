@@ -9,7 +9,7 @@ Prerequisites to Run:
 - Posix: zip (Info-ZIP) and 7z (p7zip) (On Windows, these will automatically
   be downloaded if necessary.)
 - Posix: Working gcc toolchain, including GNU make which is not installed on
-  FreeBSD by default. On OSX, Xcode is needed to install the gcc toolchain.
+  FreeBSD by default. On OSX, you can install the gcc toolchain through Xcode.
 - Windows: Working DMC and MSVC toolchains. The default make must be DM make.
   Also, these environment variables must be set:
     VCDIR:  Visual C directory
