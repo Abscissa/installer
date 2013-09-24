@@ -478,6 +478,14 @@ int main(string[] args)
 
         string branch = args[1];
         init(branch);
+        
+        if(!skipClone)
+        {
+            ensureNotFile(cloneDir);
+            removeDir(cloneDir);
+            makeDir(cloneDir);
+        }
+        
         initTools();
 
         if(!skipClone)
@@ -667,10 +675,6 @@ void init(string branch)
 
 void cloneSources(string branch)
 {
-    ensureNotFile(cloneDir);
-    removeDir(cloneDir);
-    makeDir(cloneDir);
-
     auto saveDir = getcwd();
     scope(exit) changeDir(saveDir);
     changeDir(cloneDir);
