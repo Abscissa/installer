@@ -872,7 +872,8 @@ void buildAll(Bits bits)
             // Needed by chmgen to build a chm of the docs on Windows
             infoMsg("Getting curl Import Lib");
             changeDir(cloneDir~"/tools");
-            run("get_dlibcurl32.bat "~libCurlVersion~hideStdout);
+            run(cloneDir~"/dmd/src/dmd -gc get_dlibcurl32.d");
+            run("get_dlibcurl32 "~libCurlVersion~hideStdout);
         }
         
         infoMsg("Building Druntime Docs");
