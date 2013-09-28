@@ -127,6 +127,10 @@ version(Windows)
     immutable tool7z        = "7za";
     immutable build64BitTools = false;
 
+    // Building Win64 druntime/phobos relies on an existing DMD, but there's no
+    // official Win64 build/makefile of DMD. This is a hack to work around that.
+    immutable lib64RequiresDmd32 = true;
+    
     immutable osDirName     = osDirNameWindows;
     immutable make          = "make";
     immutable useBitsSuffix = false; // Ie: "bin"/"lib" or "bin32"/"lib32"
@@ -186,7 +190,8 @@ else version(Posix)
     immutable libPhobos32   = "libphobos2";
     immutable libPhobos64   = "libphobos2";
     immutable tool7z        = "7z";
-    immutable build64BitTools = true;
+    immutable build64BitTools    = true;
+    immutable lib64RequiresDmd32 = false;
 
     version(FreeBSD)
         immutable osDirName = osDirNameFreeBSD;
@@ -781,10 +786,16 @@ void buildAll()
         buildAll(Bits.bits32);
 
     if(do64Bit)
+    {
+        if(!do32Bit && lib64RequiresDmd32)
+            buildAll(Bits.bits32, true);
+        
         buildAll(Bits.bits64);
+    }
 }
 
-void buildAll(Bits bits)
+/// dmdOnly is part of the lib64RequiresDmd32 hack.
+void buildAll(Bits bits, bool dmdOnly=false)
 {
     static alreadyBuiltDocs = false;
 
@@ -850,6 +861,9 @@ void buildAll(Bits bits)
     version(Windows)
         copyFile(customExtrasDir~"/dmd2/windows/bin/link.exe", cloneDir~"/dmd/src/link.exe");
     
+    if(dmdOnly)
+        return;
+    
     infoMsg("Building Druntime "~bitsDisplay);
     changeDir(cloneDir~"/druntime");
     run(make~jobs~makeModel~msvcEnv~" DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
@@ -885,11 +899,15 @@ void buildAll(Bits bits)
     {
         version(Windows)
         {
-            // Needed by chmgen to build a chm of the docs on Windows
-            infoMsg("Getting curl Import Lib");
-            changeDir(cloneDir~"/tools");
-            run(cloneDir~"/dmd/src/dmd -gc get_dlibcurl32.d");
-            run("get_dlibcurl32 "~libCurlVersion~hideStdout);
+            // The chm/libcurl stuff is Win32-only
+            if(bits == Bits.bits32)
+            {
+                // Needed by chmgen to build a chm of the docs on Windows
+                infoMsg("Getting curl Import Lib");
+                changeDir(cloneDir~"/tools");
+                run(cloneDir~"/dmd/src/dmd -gc get_dlibcurl32.d");
+                run("get_dlibcurl32 "~libCurlVersion~hideStdout);
+            }
         }
         
         infoMsg("Building Druntime Docs");
@@ -921,9 +939,14 @@ void buildAll(Bits bits)
         version(Windows)
         {
             copyDir(cloneDir~"/web/phobos-prerelease", cloneDir~"/dlang.org/phobos");
-            copyFile(cloneDir~"/tools/dlibcurl32-"~libCurlVersion~"/libcurl.lib", "./curl.lib");
-            copyDir(cloneDir~"/tools/dlibcurl32-"~libCurlVersion, ".", file => file.endsWith(".dll"));
-            run(make~jobs~" chm DMD=../dmd/src/dmd DOCSRC=../dlang.org DOCDIR=../web/phobos-prerelease -f "~makefile~hideStdout);
+
+            // The chm/libcurl stuff is Win32-only
+            if(bits == Bits.bits32)
+            {
+                copyFile(cloneDir~"/tools/dlibcurl32-"~libCurlVersion~"/libcurl.lib", "./curl.lib");
+                copyDir(cloneDir~"/tools/dlibcurl32-"~libCurlVersion, ".", file => file.endsWith(".dll"));
+                run(make~jobs~" chm DMD=../dmd/src/dmd DOCSRC=../dlang.org DOCDIR=../web/phobos-prerelease -f "~makefile~hideStdout);
+            }
         }
 
         // Copy phobos docs into dlang.org docs directory, because
@@ -968,7 +991,9 @@ void createRelease(string branch)
     copyDirVersioned(cloneDir~"/druntime", releaseDir~"/dmd2/src/druntime", a => a != ".gitignore");
     copyDirVersioned(cloneDir~"/phobos",   releaseDir~"/dmd2/src/phobos",   a => a != ".gitignore");
 
-    copyDir(cloneDir~"/druntime/doc",    releaseDir~"/dmd2/src/druntime/doc");
+    // druntime/doc doesn't get generated on Windows with --only-64, I don't know why.
+    if(exists(cloneDir~"/druntime/doc"))
+        copyDir(cloneDir~"/druntime/doc", releaseDir~"/dmd2/src/druntime/doc");
     copyDir(cloneDir~"/druntime/import", releaseDir~"/dmd2/src/druntime/import");
     copyFile(cloneDir~"/dmd/VERSION",    releaseDir~"/dmd2/src/VERSION");
     
@@ -979,7 +1004,10 @@ void createRelease(string branch)
         ( a.endsWith(".html") || a.startsWith("css/", "images/", "js/") );
     copyDir(cloneDir~"/"~generatedDocs, releaseDir~"/dmd2/html/d", a => dlangFilter(a));
     version(Windows)
-        copyFile(cloneDir~"/"~generatedDocs~"/d.chm", releaseBin32Dir~"/d.chm");
+    {
+        if(do32Bit)
+            copyFile(cloneDir~"/"~generatedDocs~"/d.chm", releaseBin32Dir~"/d.chm");
+    }
     copyDirVersioned(cloneDir~"/dmd/samples",  releaseDir~"/dmd2/samples/d");
     copyDirVersioned(cloneDir~"/dmd/docs/man", releaseDir~"/dmd2/man");
     makeDir(releaseDir~"/dmd2/html/d/zlib");
