@@ -125,6 +125,7 @@ version(Windows)
     immutable libPhobos32   = "phobos";
     immutable libPhobos64   = "phobos64";
     immutable tool7z        = "7za";
+    immutable build64BitTools = false;
 
     immutable osDirName     = osDirNameWindows;
     immutable make          = "make";
@@ -185,6 +186,7 @@ else version(Posix)
     immutable libPhobos32   = "libphobos2";
     immutable libPhobos64   = "libphobos2";
     immutable tool7z        = "7z";
+    immutable build64BitTools = true;
 
     version(FreeBSD)
         immutable osDirName = osDirNameFreeBSD;
@@ -327,6 +329,8 @@ version(Windows)
     string unzipArchiveDir;
     string zipArchiveDir;
     string tool7zArchiveDir;
+
+    string msvcBinDir;
 }
 
 // These are absolute and do NOT contain a trailing slash:
@@ -659,7 +663,11 @@ void init(string branch)
             verboseMsg("VCDIR:  " ~ displayPath(win64vcDir));
             verboseMsg("SDKDIR: " ~ displayPath(win64sdkDir));
             
-            ensureTool(quote(win64vcDir~"/bin/amd64/cl.exe"), "/?");
+            msvcBinDir = win64vcDir ~ "/bin/x86_amd64";
+            if(!exists(msvcBinDir~"cl.exe"))
+                msvcBinDir = win64vcDir ~ "/bin/amd64";
+            
+            ensureTool(quote(msvcBinDir~"/cl.exe"), "/?");
             try
             {
                 ensureDir(win64sdkDir);
@@ -783,10 +791,19 @@ void buildAll(Bits bits)
     auto saveDir = getcwd();
     scope(exit) changeDir(saveDir);
 
+    auto msvcEnv = "";
     version(Windows)
-        enum isWin = true;
-    else
-        enum isWin = false;
+    {
+        if(bits == Bits.bits64)
+        {
+            msvcEnv =
+                " VCDIR="  ~ quote(win64vcDir) ~
+                " SDKDIR=" ~ quote(win64sdkDir) ~
+                " CC="     ~ quote(`\"` ~ msvcBinDir~"/cl"   ~`\"`) ~
+                " LD="     ~ quote(`\"` ~ msvcBinDir~"/link" ~`\"`) ~
+                " AR="     ~ quote(`\"` ~ msvcBinDir~"/lib"  ~`\"`);
+            }
+    }
     
     auto targetMakefile = bits == Bits.bits32? makefile    : makefile64;
     auto libPhobos      = bits == Bits.bits32? libPhobos32 : libPhobos64;
@@ -796,8 +813,7 @@ void buildAll(Bits bits)
     auto hideStdout = verbose? "" : " > "~devNull;
     auto jobs = numJobs==-1? "" : text(" --jobs=", numJobs);
     
-    // Skip 64-bit tools when not using separate bin32/bin64 dirs
-    if(!isWin || bits == Bits.bits32)
+    if(build64BitTools || bits == Bits.bits32)
     {
         infoMsg("Building DMD "~bitsDisplay);
         changeDir(cloneDir~"/dmd/src");
@@ -836,13 +852,13 @@ void buildAll(Bits bits)
     
     infoMsg("Building Druntime "~bitsDisplay);
     changeDir(cloneDir~"/druntime");
-    run(make~jobs~makeModel~" DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
+    run(make~jobs~makeModel~msvcEnv~" DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
     removeFiles(cloneDir~"/druntime", "*{"~obj~"}", SpanMode.depth,
         file => !file.baseName.startsWith("gcstub", "minit"));
 
     infoMsg("Building Phobos "~bitsDisplay);
     changeDir(cloneDir~"/phobos");
-    run(make~jobs~makeModel~" DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
+    run(make~jobs~makeModel~msvcEnv~" DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
 
     version(OSX)
     {
@@ -917,8 +933,7 @@ void buildAll(Bits bits)
         alreadyBuiltDocs = true;
     }
     
-    // Skip 64-bit tools on Windows
-    if(!isWin || bits == Bits.bits32)
+    if(build64BitTools || bits == Bits.bits32)
     {
         infoMsg("Building Tools "~bitsDisplay);
         changeDir(cloneDir~"/tools");
