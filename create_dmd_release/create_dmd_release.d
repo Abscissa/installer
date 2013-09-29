@@ -1038,10 +1038,7 @@ void createRelease(string branch)
         version(Windows)
         {
             if(do64Bit)
-            {
-                copyDir(cloneDir~"/phobos/generated/"~osDirName~"/release/64", releaseLib64Dir, excludeEtc);
                 copyFile(cloneDir~"/druntime/lib/gcstub64.obj", releaseLib32Dir~"/gcstub64.obj");
-            }
             
             if(do32Bit)
                 copyFile(cloneDir~"/druntime/lib/gcstub.obj",   releaseLib32Dir~"/gcstub.obj");
