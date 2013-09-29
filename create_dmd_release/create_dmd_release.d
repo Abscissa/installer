@@ -40,14 +40,16 @@ $ [path-to]/create_dmd_release v2.064 --extras=[path-to]/localextras-[os] --arch
 
 Optionally substitute "v2.064" with either "master" or the git tag name of the
 desired release (must be at least "v2.064"). For beta releases, you can use a
-branch name like "2.064". View all options with "create_dmd_release --help".
+branch name like "2.064".
 
 If a working multilib system is any trouble, you can also build 32-bit and
 64-bit versions separately using the --only-32 and --only-64 flags.
 
+View all options with "create_dmd_release --help".
+
 3. Copy the resulting .zip and .7z files to a single directory on any
-non-Windows machine (Windows would mess up the symlinks), and generate the
-combined-OS release like this:
+non-Windows machine (Windows would mess up the symlinks and executable
+attributes), and generate the combined-OS release like this:
 
 $ [path-to]/create_dmd_release v2.064 --combine-zip --combine-7z
 
@@ -75,8 +77,9 @@ steps by including the --skip-package flag.
 The final step, combine, is completely separate. You must first run this tool
 on each of the target OSes to create the OS-specific archives. Then copy all
 the archives to a single directory on any Posix system (not Windows because
-that would destroy the symlinks in the posix archives). Then, from that
-directory, run this tool with any/all of the --combine-* flags.
+that would destroy the symlinks and executable attributes in the posix
+archives). Then, from that directory, run this tool with any/all of
+the --combine-* flags.
 +/
 
 import std.algorithm;
@@ -823,6 +826,7 @@ void buildAll(Bits bits, bool dmdOnly=false)
     auto makeModel = " MODEL="~bitsStr;
     auto hideStdout = verbose? "" : " > "~devNull;
     auto jobs = numJobs==-1? "" : text(" --jobs=", numJobs);
+    auto dmdEnv = " DMD=../dmd/src/dmd";
     
     if(build64BitTools || bits == Bits.bits32)
     {
@@ -866,13 +870,13 @@ void buildAll(Bits bits, bool dmdOnly=false)
     
     infoMsg("Building Druntime "~bitsDisplay);
     changeDir(cloneDir~"/druntime");
-    run(make~jobs~makeModel~msvcEnv~" DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
+    run(make~jobs~makeModel~dmdEnv~msvcEnv~" -f "~targetMakefile~hideStdout);
     removeFiles(cloneDir~"/druntime", "*{"~obj~"}", SpanMode.depth,
         file => !file.baseName.startsWith("gcstub", "minit"));
 
     infoMsg("Building Phobos "~bitsDisplay);
     changeDir(cloneDir~"/phobos");
-    run(make~jobs~makeModel~msvcEnv~" DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
+    run(make~jobs~makeModel~dmdEnv~msvcEnv~" -f "~targetMakefile~hideStdout);
 
     version(OSX)
     {
@@ -880,7 +884,7 @@ void buildAll(Bits bits, bool dmdOnly=false)
         {
             infoMsg("Building Phobos Universal Binary");
             changeDir(cloneDir~"/phobos");
-            run(make~jobs~makeModel~" libphobos2.a DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
+            run(make~jobs~makeModel~dmdEnv~" libphobos2.a -f "~targetMakefile~hideStdout);
         }
     }
 
@@ -912,11 +916,11 @@ void buildAll(Bits bits, bool dmdOnly=false)
         
         infoMsg("Building Druntime Docs");
         changeDir(cloneDir~"/druntime");
-        run(make~jobs~makeModel~" doc DMD=../dmd/src/dmd DOCSRC=../dlang.org DOCDIR=../web/phobos-prerelease -f "~targetMakefile~hideStdout);
+        run(make~jobs~makeModel~dmdEnv~" doc DOCSRC=../dlang.org DOCDIR=../web/phobos-prerelease -f "~targetMakefile~hideStdout);
 
         infoMsg("Building Phobos Docs");
         changeDir(cloneDir~"/phobos");
-        run(make~jobs~makeModel~" html DMD=../dmd/src/dmd DOCSRC=../dlang.org DOC=../web/phobos-prerelease -f "~targetMakefile~hideStdout);
+        run(make~jobs~makeModel~dmdEnv~" html DOCSRC=../dlang.org DOC=../web/phobos-prerelease -f "~targetMakefile~hideStdout);
 
         infoMsg("Building dlang.org");
         version(Posix)
@@ -935,7 +939,7 @@ void buildAll(Bits bits, bool dmdOnly=false)
         else
             static assert(false, "Unsupported platform");
         // Use 32-bit version of the makefile because dlang.org lacks a win64.mak
-        run(make~jobs~" DMD=../dmd/src/dmd -f "~makefile~dlangOrgTarget~hideStdout);
+        run(make~jobs~dmdEnv~" -f "~makefile~dlangOrgTarget~hideStdout);
         version(Windows)
         {
             copyDir(cloneDir~"/web/phobos-prerelease", cloneDir~"/dlang.org/phobos");
@@ -945,7 +949,7 @@ void buildAll(Bits bits, bool dmdOnly=false)
             {
                 copyFile(cloneDir~"/tools/dlibcurl32-"~libCurlVersion~"/libcurl.lib", "./curl.lib");
                 copyDir(cloneDir~"/tools/dlibcurl32-"~libCurlVersion, ".", file => file.endsWith(".dll"));
-                run(make~jobs~" chm DMD=../dmd/src/dmd DOCSRC=../dlang.org DOCDIR=../web/phobos-prerelease -f "~makefile~hideStdout);
+                run(make~jobs~dmdEnv~" chm DOCSRC=../dlang.org DOCDIR=../web/phobos-prerelease -f "~makefile~hideStdout);
             }
         }
 
@@ -960,11 +964,11 @@ void buildAll(Bits bits, bool dmdOnly=false)
     {
         infoMsg("Building Tools "~bitsDisplay);
         changeDir(cloneDir~"/tools");
-        run(make~jobs~makeModel~" rdmd      DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
-        run(make~jobs~makeModel~" ddemangle DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
-        run(make~jobs~makeModel~" findtags  DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
-        run(make~jobs~makeModel~" dustmite  DMD=../dmd/src/dmd -f "~targetMakefile~hideStdout);
-        run(make~jobs~makeModel~" dman      DMD=../dmd/src/dmd DOC=../"~generatedDocs~" PHOBOSDOC=../"~generatedDocs~"/phobos -f "~targetMakefile~hideStdout);
+        run(make~jobs~makeModel~dmdEnv~" rdmd      -f "~targetMakefile~hideStdout);
+        run(make~jobs~makeModel~dmdEnv~" ddemangle -f "~targetMakefile~hideStdout);
+        run(make~jobs~makeModel~dmdEnv~" findtags  -f "~targetMakefile~hideStdout);
+        run(make~jobs~makeModel~dmdEnv~" dustmite  -f "~targetMakefile~hideStdout);
+        run(make~jobs~makeModel~dmdEnv~" dman      DOC=../"~generatedDocs~" PHOBOSDOC=../"~generatedDocs~"/phobos -f "~targetMakefile~hideStdout);
         
         removeFiles(cloneDir~"/tools", "*.{"~obj~"}", SpanMode.depth);
     }
