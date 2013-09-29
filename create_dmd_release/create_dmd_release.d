@@ -1028,9 +1028,12 @@ void createRelease(string branch)
     else
     {
         // Generated lib dir contains an empty "etc/c/zlib" that we shouldn't include.
-        auto excludeEtc = delegate bool(string file) => !file.startsWith("etc/");
+        auto excludeEtc = delegate bool(string file) => !file.startsWith("etc");
         if(do32Bit)
             copyDir(cloneDir~"/phobos/generated/"~osDirName~"/release/32", releaseLib32Dir, excludeEtc);
+
+        if(do64Bit)
+            copyDir(cloneDir~"/phobos/generated/"~osDirName~"/release/64", releaseLib64Dir, excludeEtc);
 
         version(Windows)
         {
