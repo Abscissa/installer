@@ -1478,7 +1478,7 @@ void copyDir(string src, string dest, bool delegate(string) filter = null)
             {
                 if(entry.isSymlink)
                 {
-                    run("ln -P "~srcPath~" "~destPath);
+                    run("cp -P "~srcPath~" "~destPath);
                     continue;
                 }
             }
